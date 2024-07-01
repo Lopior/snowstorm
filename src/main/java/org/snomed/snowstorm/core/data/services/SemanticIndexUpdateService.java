@@ -117,7 +117,7 @@ public class SemanticIndexUpdateService extends ComponentService implements Comm
 	}
 
 	private void updateStatedAndInferredSemanticIndex(Commit commit) throws IllegalStateException, ConversionException, GraphBuilderException, ServiceException {
-		if (commit.isRebase()) {
+		if (commit.isRebase() || (useSeparateSemanticIndex(commit.getBranch()) && BranchMetadataHelper.isImportingCodeSystemVersion(commit) && !commit.getBranch().isContainsContent())) {
 			rebuildSemanticIndex(commit, false);
 		} else if (commit.getCommitType() != Commit.CommitType.PROMOTION) {
 			// Update query index using changes in the current commit
@@ -133,11 +133,14 @@ public class SemanticIndexUpdateService extends ComponentService implements Comm
 		// If promotion the semantic changes will be promoted with the rest of the content.
 	}
 
+	private boolean useSeparateSemanticIndex(Branch branch) {
+		return versionControlHelper.getParentBranchesExcludedEntityClassNames(branch).contains(QueryConcept.class.getSimpleName());
+	}
+
 	private Map<String, Integer> rebuildSemanticIndex(Commit commit, boolean dryRun) throws ConversionException, GraphBuilderException, ServiceException {
 		Branch branch = commit.getBranch();
-
 		Set<String> relationshipAndAxiomDeletionsToProcess = Sets.union(branch.getVersionsReplaced(ReferenceSetMember.class), branch.getVersionsReplaced(Relationship.class));
-		boolean completeRebuild = branch.getPath().equals("MAIN");
+		boolean completeRebuild = branch.getPath().equals("MAIN") || useSeparateSemanticIndex(branch);
 		if (!completeRebuild) {
 			// Recreate query index using new parent base point + content on this branch
 			if (dryRun) {
@@ -201,7 +204,7 @@ public class SemanticIndexUpdateService extends ComponentService implements Comm
 		if (completeRebuild) {
 			updatedConceptIds = Collections.emptySet();
 			newGraph = true;
-			logger.info("Performing rebuild of {} semantic index", form.getName());
+			logger.info("Performing complete rebuild of {} semantic index", form.getName());
 		} else {
 			updatedConceptIds = buildRelevantPartsOfExistingGraph(graphBuilder, form, changesCriteria, previousStateCriteria, internalIdsOfDeletedComponents, timer);
 			if (updatedConceptIds.isEmpty()) {
@@ -474,7 +477,7 @@ public class SemanticIndexUpdateService extends ComponentService implements Comm
 	}
 
 	private Map<String, ConcreteValue.DataType> getConcreteAttributeDataTypeMap(Commit commit) throws ServiceException {
-		MRCM mrcm = mrcmLoader.loadActiveMRCM(commit.getBranch().getPath(), versionControlHelper.getBranchCriteriaIncludingOpenCommit(commit));
+		MRCM mrcm = mrcmLoader.loadActiveMRCM(versionControlHelper.getBranchCriteriaIncludingOpenCommit(commit));
 		return mrcm.attributeRanges().stream().filter(r -> r.getDataType() != null)
 				.collect(Collectors.toMap(AttributeRange::getReferencedComponentId, AttributeRange::getDataType, (r1, r2) -> r2));
 	}

@@ -31,6 +31,7 @@ import org.springframework.data.elasticsearch.core.SearchHitsIterator;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.client.elc.NativeQueryBuilder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -115,6 +116,7 @@ public class ConceptUpdateHelper extends ComponentService {
 		// Grab branch metadata including values inherited from ancestor branches
 		Metadata metadata = branchService.findBranchOrThrow(commit.getBranch().getPath(), true).getMetadata();
 		String defaultModuleId = metadata.getString(Config.DEFAULT_MODULE_ID_KEY);
+		List<String> expectedExtensionModules = metadata.getList(Config.EXPECTED_EXTENSION_MODULES);
 		String defaultNamespace = metadata.getString(Config.DEFAULT_NAMESPACE_KEY);
 		final boolean contentAutomationsDisabled = BranchMetadataHelper.isContentAutomationsDisabledForCommit(commit);
 		TimerUtil timerUtil = new TimerUtil("identifierService.reserveIdentifierBlock", Level.INFO, 1);
@@ -261,7 +263,7 @@ public class ConceptUpdateHelper extends ComponentService {
 
 			// Descriptions
 			markDeletionsAndUpdates(newVersionConcept, existingConcept, existingConceptFromParent, Concept::getDescriptions,
-					defaultModuleId, descriptionsToPersist, rebaseConflictSave);
+					defaultModuleId, expectedExtensionModules, descriptionsToPersist, rebaseConflictSave);
 
 			// Todo: un-comment out this line when allowing the alternative identifier modification
 			// Alternative Identifiers
@@ -270,15 +272,15 @@ public class ConceptUpdateHelper extends ComponentService {
 
 			// Relationships
 			markDeletionsAndUpdates(newVersionConcept, existingConcept, existingConceptFromParent, Concept::getRelationships,
-					defaultModuleId, relationshipsToPersist, rebaseConflictSave);
+					defaultModuleId, expectedExtensionModules, relationshipsToPersist, rebaseConflictSave);
 
 			// Axiom refset members
 			markDeletionsAndUpdates(newVersionConcept, existingConcept, existingConceptFromParent, Concept::getAllOwlAxiomMembers,
-					defaultModuleId, refsetMembersToPersist, rebaseConflictSave);
+					defaultModuleId, expectedExtensionModules, refsetMembersToPersist, rebaseConflictSave);
 			
 			// Annotation refset members
 			markDeletionsAndUpdates(newVersionConcept, existingConcept, existingConceptFromParent, Concept::getAllAnnotationMembers,
-					defaultModuleId, refsetMembersToPersist, rebaseConflictSave);
+					defaultModuleId, expectedExtensionModules, refsetMembersToPersist, rebaseConflictSave);
 
 
 			for (Description description : newVersionConcept.getDescriptions()) {
@@ -287,7 +289,7 @@ public class ConceptUpdateHelper extends ComponentService {
 
 				// Description language refset members
 				markDeletionsAndUpdates(description, existingDescription, existingDescriptionFromParent, Description::getLangRefsetMembers,
-						defaultModuleId, refsetMembersToPersist, rebaseConflictSave);
+						defaultModuleId, expectedExtensionModules, refsetMembersToPersist, rebaseConflictSave);
 			}
 
 			// Detach concept's components to ensure concept persisted without collections
@@ -662,7 +664,7 @@ public class ConceptUpdateHelper extends ComponentService {
 
 	@SuppressWarnings("unchecked")
 	private <C extends SnomedComponent, T extends SnomedComponent<?>> void markDeletionsAndUpdates(T newConcept, T existingConcept, T existingConceptFromParent,
-																								   Function<T, Collection<C>> getter, String defaultModuleId, Collection<C> componentsToPersist, boolean rebase) {
+																								   Function<T, Collection<C>> getter, String defaultModuleId, List<String> expectedExtensionModules, Collection<C> componentsToPersist, boolean rebase) {
 
 		final Collection<C> newComponents = getExistingComponents(newConcept, getter);
 		final Collection<C> existingComponents = getExistingComponents(existingConcept, getter);
@@ -670,6 +672,9 @@ public class ConceptUpdateHelper extends ComponentService {
 
 		final Map<String, C> existingComponentMap = existingComponents.stream().collect(Collectors.toMap(DomainEntity::getId, Function.identity()));
 		final Map<String, C> rebaseParentExistingComponentMap = existingComponentsFromParent.stream().collect(Collectors.toMap(DomainEntity::getId, Function.identity()));
+
+		final boolean hasDefaultModuleId = defaultModuleId != null;
+		final boolean hasOtherModules = expectedExtensionModules != null && !expectedExtensionModules.isEmpty();
 
 		// Mark updates
 		for (C newComponent : newComponents) {
@@ -685,8 +690,14 @@ public class ConceptUpdateHelper extends ComponentService {
 			}
 
 			// Any change to a component in an extension needs to be done in the default module
-			if (newComponent.isComponentChanged(existingComponent) && (defaultModuleId != null && !defaultModuleId.equals(Concepts.CORE_MODULE))) {
-				newComponent.setModuleId(defaultModuleId);
+			boolean newComponentHasNoModule = newComponent.getModuleId() == null;
+			boolean newComponentNotInExpectedModule = hasOtherModules && !expectedExtensionModules.contains(newComponent.getModuleId());
+			if (newComponent.isComponentChanged(existingComponent)) {
+				if (newComponentHasNoModule || (hasOtherModules && newComponentNotInExpectedModule) || !hasOtherModules) {
+					if (hasDefaultModuleId) {
+						newComponent.setModuleId(defaultModuleId);
+					}
+				}
 			}
 
 			// Update effective time
@@ -694,14 +705,15 @@ public class ConceptUpdateHelper extends ComponentService {
 
 			// Trying concept module in attempt to restore effective time
 			// for the case where content has changed and then been reverted.
-			if (defaultModuleId != null && newComponent.getEffectiveTime() == null) {
+			if (newComponent.isReleased() && defaultModuleId != null && newComponent.getEffectiveTime() == null) {
 				logger.trace("Setting module of {} to be same as concept: {}.", newComponent.getId(), newConcept.getModuleId());
+				String moduleIdCopy = newComponent.getModuleId();
 				newComponent.setModuleId(newConcept.getModuleId());
 				newComponent.updateEffectiveTime();
 				if (newComponent.getEffectiveTime() == null) {
 					// If effective time is still null then revert the change of module back to the branch default
 					logger.trace("Setting module of {} to be same as branch default: {}.", newComponent.getId(), defaultModuleId);
-					newComponent.setModuleId(defaultModuleId);
+					newComponent.setModuleId(moduleIdCopy);
 					newComponent.updateEffectiveTime();
 				}
 			}
@@ -720,8 +732,12 @@ public class ConceptUpdateHelper extends ComponentService {
 						existingComponent.setChanged(true);
 						
 						//Any change to a component in an extension needs to be done in the default module
-						if (defaultModuleId != null && !defaultModuleId.equals(Concepts.CORE_MODULE)) {
-							existingComponent.setModuleId(defaultModuleId);
+						boolean newComponentHasNoModule = existingComponent.getModuleId() == null;
+						boolean newComponentNotInExpectedModule = hasOtherModules && !expectedExtensionModules.contains(existingComponent.getModuleId());
+						if (newComponentHasNoModule || (hasOtherModules && newComponentNotInExpectedModule) || !hasOtherModules) {
+							if (hasDefaultModuleId) {
+								existingComponent.setModuleId(defaultModuleId);
+							}
 						}
 						
 						existingComponent.copyReleaseDetails(existingComponent, existingParentComponent);

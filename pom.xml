@@ -6,20 +6,19 @@
 	<description>SNOMED CT Terminology Server Using Elasticsearch</description>
 
 	<artifactId>snowstorm</artifactId>
-	<version>10.1.0</version>
+	<version>10.3.1</version>
 	<parent>
 		<groupId>org.snomed</groupId>
 		<artifactId>snomed-parent-bom</artifactId>
-		<version>3.1.0</version>
+		<version>3.4.0</version>
 	</parent>
 
 	<properties>
 		<packageName>${project.artifactId}</packageName>
 		<!--
-		Current Elasticsearch _Server_ version is 8.7.1
+		Current Elasticsearch _Server_ version is 8.11.1
 		N.B. Remember to keep TestConfig.ELASTIC_SEARCH_SERVER_VERSION and getting-started guide updated.
 		-->
-
 		<docker.registry>docker.io</docker.registry>
 		<docker.allowInsecureRegistries>false</docker.allowInsecureRegistries>
 		<docker.image.prefix>snomedinternational</docker.image.prefix>
@@ -152,19 +151,19 @@
 			<artifactId>modelmapper</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.snomed.fhir</groupId>
+			<groupId>ca.uhn.hapi.fhir</groupId>
 			<artifactId>hapi-fhir-structures-r4</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.snomed.fhir</groupId>
+			<groupId>ca.uhn.hapi.fhir</groupId>
 			<artifactId>hapi-fhir-server</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.snomed.fhir</groupId>
+			<groupId>ca.uhn.hapi.fhir</groupId>
 			<artifactId>hapi-fhir-jpaserver-base</artifactId>
 			<exclusions>
 				<exclusion>
-					<groupId>org.snomed.fhir</groupId>
+					<groupId>ca.uhn.hapi.fhir</groupId>
 					<artifactId>hapi-fhir-sql-migrate</artifactId>
 				</exclusion>
 				<exclusion>
@@ -199,7 +198,7 @@
 			</exclusions>
 		</dependency>
 		<dependency>
-			<groupId>org.snomed.fhir</groupId>
+			<groupId>ca.uhn.hapi.fhir</groupId>
 			<artifactId>hapi-fhir-jpaserver-model</artifactId>
 			<exclusions>
 				<exclusion>

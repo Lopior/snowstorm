@@ -3,6 +3,37 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 10.3.1 Release (May 2024)
+Maintenance release with bug fixes and improvements.
+### Fixes
+- AMS-41 Update correct branch metadata item when upgrading CodeSystem
+- MAINT-2529 Prevent startup from failing if MAIN branch is locked
+
+### Improvements
+- MAINT-2528 Improve log message when Traceability data is chunked 
+- MAINT-2547 Allow configurable aggregation search size
+- VAL-376 Add Drools assertion for German language
+- VAL-377 Identify Relationships that are in a different module from the source Concept
+- MAINT-2449 Upgrade HAPI-FHIR to 7.0.2
+- MAINT-2550 Reduce excessive logging when classification job is timed out
+
+## 10.2.1 Release (March 2024)
+Maintenance release with bug fixes and improvements.
+### Fixes
+- MAINT-2476 Fix de-serialization bug when extra colon found in String concrete value
+- MAINT-2490 Stop applying default module id to components if module has expected value
+
+### Improvements
+- ISTO-107 Support loading LOINC 2.73 and above
+- MAINT-2493 Change annotation column from languageCode to languageDialectCode
+- MAINT-2403 Add option to store Extensions in separate Semantic index
+- MAINT-2496 Improve performance of integrity report by increasing page size
+
+## 10.1.1 Hotfix Release (February 2024)
+
+### Fixes
+- MAINT-2502 Performance improvement for rebasing
+
 ## 10.1.0 Release (January 2024)
 Maintenance release with bug fixes and improvements.
 
